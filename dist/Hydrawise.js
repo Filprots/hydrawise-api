@@ -25,13 +25,22 @@ class Hydrawise {
      */
     constructor(options) {
         this.cloudUrl = 'https://app.hydrawise.com/api/v1/';
-        this.type = options.type || HydrawiseConnectionType_1.HydrawiseConnectionType.CLOUD; // CLOUD or LOCAL 
+        this.__cache = {};
+        this.type = options.type || HydrawiseConnectionType_1.HydrawiseConnectionType.CLOUD; // CLOUD or LOCAL
         this.url = (this.type == HydrawiseConnectionType_1.HydrawiseConnectionType.LOCAL ? 'http://' + options.host + '/' : this.cloudUrl);
         // Local Auth
         this.localAuthUsername = options.user || 'admin';
         this.localAuthPassword = options.password || '';
         // Cloud Auth
         this.cloudAuthAPIkey = options.key || '';
+    }
+    __createCache(name, map) {
+        this.__cache[name] = { ...(this.__cache[name] || {}), ...map };
+    }
+    __readCachedValue(name, key) {
+        if (this.__cache[name])
+            return this.__cache[name][key];
+        return undefined;
     }
     /**
      * Private function that makes a GET request to the local or cloud Hydrawise server
@@ -104,6 +113,9 @@ class Hydrawise {
             // Set controller if one was provided (only for cloud)
             if (that.type == HydrawiseConnectionType_1.HydrawiseConnectionType.CLOUD && zoneOrRelay instanceof HydrawiseZone_1.HydrawiseZone && zoneOrRelay.controller !== undefined && zoneOrRelay.controller instanceof HydrawiseController_1.HydrawiseController) {
                 opts.controller_id = zoneOrRelay.controller.id;
+            }
+            else {
+                opts.controller_id = this.__readCachedValue('zoneToControllerMap', opts.relay_id) || undefined;
             }
             // Execute command
             that.setZone(opts).then((data) => {
@@ -220,12 +232,16 @@ class Hydrawise {
                 }
             }
             // Get relays
+            // @ts-ignore
             that.getStatusAndSchedule(controllerID).then((data) => {
                 let zones = [];
+                const zoneToControllerMap = {};
                 // Check every returned relay
                 data.relays.map((z) => {
                     // Only configured zones
                     if (that.type == HydrawiseConnectionType_1.HydrawiseConnectionType.CLOUD || z.lastwaterepoch != 0) {
+                        // create mapping from zone to controller to run zone with just specifying controllerId
+                        zoneToControllerMap[z.relay_id] = controllerID;
                         // Zone
                         let zone = {
                             apiBinding: that,
@@ -264,6 +280,7 @@ class Hydrawise {
                         zones.push(new HydrawiseZone_1.HydrawiseZone(zone));
                     }
                 });
+                this.__createCache('zoneToControllerMap', zoneToControllerMap);
                 resolve(zones);
             }).catch((err) => {
                 reject(err);

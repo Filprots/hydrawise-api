@@ -20,6 +20,9 @@ export declare class Hydrawise {
     localAuthUsername: string;
     localAuthPassword: string;
     cloudAuthAPIkey: string;
+    private __cache;
+    private __createCache;
+    private __readCachedValue;
     /**
      * Create a new instance of the Hydrawise API binding
      * @param {object} options - Options object containing all parameters
